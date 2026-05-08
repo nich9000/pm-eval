@@ -1,0 +1,61 @@
+name: summary-fidelity
+description: >
+  Grades summaries on faithfulness to source, coverage of key points, and
+  absence of hallucinated facts. Use when an LLM has summarized a longer
+  document and you need to verify the summary is trustworthy.
+
+input_type: summary_with_source
+
+dimensions:
+  - name: faithfulness
+    description: >
+      Does every claim in the summary trace back to the source? Lower score
+      when claims aren't supported by the source text.
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Numeric figures present in summary but not source"
+      - "Causal claims ('because') that source doesn't make"
+      - "Summary attributes a position to a person the source didn't mention"
+
+  - name: coverage
+    description: >
+      Does the summary capture the major points of the source, or does it
+      cherry-pick a slice and ignore equally important content?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Top-of-source items captured, mid-source items dropped"
+      - "Counter-arguments in source omitted from summary"
+      - "Numerical context (totals, comparisons) collapsed away"
+
+  - name: no_hallucination
+    description: >
+      Hard binary signal: are there any factual claims in the summary that
+      contradict or invent beyond the source?
+    scale: "PASS/FAIL"
+    failure_modes:
+      - "Invented fact present in summary"
+      - "Contradiction between summary and source"
+      - "Fabricated quotation"
+
+prompt_template: |
+  You are evaluating an LLM-generated summary against its source. Grade on
+  faithfulness, coverage, and absence of hallucination.
+
+  --- SOURCE ---
+  {{ source }}
+  --- END SOURCE ---
+
+  --- SUMMARY ---
+  {{ input }}
+  --- END SUMMARY ---
+
+  Respond as JSON:
+  {
+    "faithfulness": { "score": float, "reason": str, "failures": [str, ...] },
+    "coverage": { "score": float, "reason": str, "failures": [str, ...] },
+    "no_hallucination": { "score": "PASS" | "FAIL", "reason": str, "failures": [str, ...] },
+    "overall_reason": str
+  }
+
+output_schema:
+  type: object

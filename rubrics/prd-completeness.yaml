@@ -1,0 +1,62 @@
+name: prd-completeness
+description: >
+  Grades a Product Requirements Document on framing, story coverage, risk
+  articulation, and metrics specificity. Designed for output from
+  prd-generator and similar PRD-generation pipelines.
+
+input_type: prd_markdown
+
+dimensions:
+  - name: framing
+    description: >
+      Does the PRD have a clear restated problem, target user persona, and
+      3-5 measurable success metrics with numbers or directional comparisons?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Restated problem missing or buried"
+      - "Persona too generic ('users') without segmentation"
+      - "Success metrics without numeric anchors"
+
+  - name: story_coverage
+    description: >
+      Are user stories in proper role/goal/benefit form with priorities, and
+      do they include at least one error or edge path?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Stories missing benefit clause"
+      - "All stories P0 (no prioritization)"
+      - "No error or edge-case story"
+
+  - name: risk_articulation
+    description: >
+      Are risks specific enough to be actionable, with severity and mitigation
+      strategy? Or are they platitudes ('users may not adopt')?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Risks without severity ranking"
+      - "Risks without mitigation strategy"
+      - "Risks that are restatements of the problem rather than failure modes"
+
+  - name: requirements_specificity
+    description: >
+      Are requirements written in EARS or equivalent structured form? Are they
+      directly testable?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Requirements as marketing copy"
+      - "Requirements that mix multiple shall-statements in one bullet"
+      - "Acceptance criteria missing for stories"
+
+prompt_template: |
+  You are evaluating a Product Requirements Document (PRD) on completeness
+  and rigor. Grade strictly — PRDs that pass into engineering should clear
+  a high bar.
+
+  --- PRD ---
+  {{ input }}
+  --- END PRD ---
+
+  Respond as JSON with one entry per dimension plus an overall_reason field.
+
+output_schema:
+  type: object

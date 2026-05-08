@@ -1,0 +1,80 @@
+name: spec-quality
+description: >
+  Grades technical specifications on ambiguity, testability, completeness,
+  and EARS conformance. Designed to evaluate output from spec-generation
+  pipelines like ears-spec-agent.
+
+input_type: technical_spec
+
+dimensions:
+  - name: specificity
+    description: >
+      Are requirements concrete enough to be testable, or do they hide behind
+      vague verbs like "support," "handle," "process"?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Uses vague verbs without measurable criteria"
+      - "Omits numeric thresholds where they're decision-relevant"
+      - "Wraps the same idea in multiple requirements without distinguishing them"
+
+  - name: completeness
+    description: >
+      Does the spec cover the happy path, error paths, and edge cases? Are
+      there visible gaps where a reasonable engineer would need to ask for
+      clarification?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Missing error or unwanted-behavior requirements"
+      - "Missing state transitions"
+      - "No acceptance criteria for at least one user story"
+
+  - name: ears_conformance
+    description: >
+      Are requirements written in EARS syntax (Ubiquitous, Event-driven,
+      State-driven, Unwanted-behavior, Optional-feature) using the correct
+      sentence patterns?
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Mixed sentence patterns within a single requirement"
+      - "Trigger conditions buried mid-sentence instead of leading"
+      - "Conditional logic that should be IF/THEN written as ubiquitous"
+
+  - name: ambiguity
+    description: >
+      Are pronouns resolved, terms defined, and quantifiers explicit (all,
+      some, exactly N)? Lower score = more ambiguity.
+    scale: "0.0-1.0"
+    failure_modes:
+      - "Unresolved pronouns ('it', 'they') across requirements"
+      - "Undefined domain terms"
+      - "Quantifiers omitted ('users' instead of 'any authenticated user')"
+
+prompt_template: |
+  You are an expert evaluator of technical specifications. Grade the spec below
+  on four dimensions: specificity, completeness, EARS conformance, and
+  ambiguity. For each dimension, return a score between 0.0 and 1.0 and a
+  short reason citing specific lines.
+
+  Be strict. A spec that "could probably be improved" is a 0.6, not a 0.9.
+
+  --- SPEC TO GRADE ---
+  {{ input }}
+  --- END SPEC ---
+
+  Respond as JSON with the structure:
+  {
+    "specificity": { "score": float, "reason": str, "failures": [str, ...] },
+    "completeness": { "score": float, "reason": str, "failures": [str, ...] },
+    "ears_conformance": { "score": float, "reason": str, "failures": [str, ...] },
+    "ambiguity": { "score": float, "reason": str, "failures": [str, ...] },
+    "overall_reason": str
+  }
+
+output_schema:
+  type: object
+  properties:
+    specificity: { type: object }
+    completeness: { type: object }
+    ears_conformance: { type: object }
+    ambiguity: { type: object }
+    overall_reason: { type: string }

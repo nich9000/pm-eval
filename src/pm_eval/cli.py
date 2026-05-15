@@ -1,6 +1,25 @@
-"""pm-eval CLI entry point."""
+"""pm-eval CLI."""
+
+import json
+import sys
+from pathlib import Path
 
 import click
+
+from pm_eval import Grader, Rubric
+
+
+def _get_provider(name: str, model: str | None):
+    if name == "anthropic":
+        from pm_eval.providers.anthropic import ClaudeProvider
+        return ClaudeProvider(model=model or "claude-sonnet-4-6")
+    if name == "openai":
+        from pm_eval.providers.openai import OpenAIProvider
+        return OpenAIProvider(model=model or "gpt-4o")
+    if name == "local":
+        from pm_eval.providers.local import LocalProvider
+        return LocalProvider(model=model or "llama3.1:8b")
+    raise click.ClickException(f"Unknown provider: {name}")
 
 
 @click.group()
@@ -11,28 +30,65 @@ def main():
 
 
 @main.command()
-@click.option("--input", "-i", required=True, help="Path to the artifact to grade.")
-@click.option("--rubric", "-r", required=True, help="Path to a rubric YAML file.")
+@click.option("--input", "-i", "input_path", required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help="Path to the artifact to grade.")
+@click.option("--rubric", "-r", "rubric_path", required=True,
+              type=click.Path(exists=True, dir_okay=False),
+              help="Path to a rubric YAML file.")
 @click.option("--provider", "-p", default="anthropic",
               type=click.Choice(["anthropic", "openai", "local"]),
               help="Judge provider to use.")
-@click.option("--model", "-m", default=None, help="Model name override.")
-def grade(input, rubric, provider, model):
+@click.option("--model", "-m", default=None,
+              help="Model name override (default depends on provider).")
+@click.option("--output", "-o", "output_path", default=None,
+              type=click.Path(dir_okay=False),
+              help="Output file. If omitted, prints to stdout.")
+@click.option("--format", "out_format", default="markdown",
+              type=click.Choice(["markdown", "json"]),
+              help="Output format.")
+def grade(input_path, rubric_path, provider, model, output_path, out_format):
     """Grade a single input against a rubric."""
-    # TODO (v0.1): wire to Grader + provider factory
-    click.echo(f"Grading {input} against {rubric} via {provider}/{model or '<default>'}")
-    click.echo("(implementation pending — see roadmap in README)")
+    rubric_obj = Rubric.from_file(rubric_path)
+    provider_obj = _get_provider(provider, model)
+    grader = Grader(provider=provider_obj, rubric=rubric_obj)
+
+    click.echo(
+        f"Grading {input_path} against {rubric_obj.name} "
+        f"via {provider}/{provider_obj.model}…",
+        err=True,
+    )
+    input_text = Path(input_path).read_text(encoding="utf-8")
+    result = grader.grade(input_text)
+
+    if out_format == "json":
+        out_text = json.dumps(result.to_dict(), indent=2)
+    else:
+        out_text = result.to_markdown()
+
+    if output_path:
+        Path(output_path).write_text(out_text, encoding="utf-8")
+        click.echo(f"Wrote {output_path}", err=True)
+    else:
+        click.echo(out_text)
+
+    if result.parse_error:
+        sys.exit(2)
 
 
 @main.command()
-@click.option("--inputs", required=True, help="Directory of artifacts to grade.")
-@click.option("--rubric", "-r", required=True, help="Rubric YAML file.")
+@click.option("--inputs", "inputs_dir", required=True,
+              type=click.Path(exists=True, file_okay=False),
+              help="Directory of artifacts to grade.")
+@click.option("--rubric", "-r", "rubric_path", required=True,
+              type=click.Path(exists=True, dir_okay=False))
 @click.option("--provider", "-p", default="anthropic",
               type=click.Choice(["anthropic", "openai", "local"]))
-def suite(inputs, rubric, provider):
+@click.option("--glob", default="*.md", help="Filename glob.")
+def suite(inputs_dir, rubric_path, provider, glob):
     """Run a rubric across many inputs (regression suite)."""
-    click.echo(f"Suite: {inputs} against {rubric} via {provider}")
-    click.echo("(implementation pending — see roadmap in README)")
+    click.echo(f"Suite: {inputs_dir} against {rubric_path} via {provider}", err=True)
+    click.echo("(suite runner is v0.3 work — implement in pm_eval.runner.Runner.run)", err=True)
 
 
 if __name__ == "__main__":

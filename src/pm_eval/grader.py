@@ -1,13 +1,4 @@
-"""Grader — orchestrates provider + rubric + input into a structured result.
-
-Usage:
-    from pm_eval import Grader
-    from pm_eval.providers import ClaudeProvider
-
-    grader = Grader(provider=ClaudeProvider(), rubric="rubrics/spec-quality.yaml")
-    result = grader.grade(open("examples/sample_spec.md").read())
-    print(result.to_markdown())
-"""
+"""Grader — orchestrates provider + rubric + input into a structured result."""
 
 import json
 import re
@@ -20,8 +11,7 @@ from pm_eval.rubric import Rubric
 
 @dataclass
 class GradeResult:
-    """Structured output of a single grading run."""
-    score: float                                          # overall, 0.0-1.0
+    score: float
     dimensions: dict[str, float] = field(default_factory=dict)
     failures: list[str] = field(default_factory=list)
     reasoning: str = ""
@@ -77,36 +67,43 @@ class GradeResult:
 
 
 def _extract_json(text: str) -> dict:
-    """Robustly extract a JSON object from the judge model's response.
-
-    Handles three common patterns:
-      1. Bare JSON object (best case).
-      2. JSON wrapped in a ```json ... ``` fenced block.
-      3. JSON with prose before/after.
-    """
+    """Robustly extract a JSON object from the judge's response."""
     text = text.strip()
-    # Pattern 2: fenced code block
-    fence = re.search(r"```(?:json)?\s*\n(.*?)\n```", text, re.DOTALL | re.IGNORECASE)
+    # Fenced code block first
+    fence = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL | re.IGNORECASE)
     if fence:
-        return json.loads(fence.group(1))
-    # Pattern 1 & 3: find the largest balanced { ... }
+        body = fence.group(1).strip()
+        return json.loads(body)
+    # Bare JSON — find largest balanced object
     start = text.find("{")
     if start == -1:
         raise ValueError("No JSON object found in response")
     depth = 0
+    in_string = False
+    escape_next = False
     for i in range(start, len(text)):
         c = text[i]
+        if escape_next:
+            escape_next = False
+            continue
+        if c == "\\":
+            escape_next = True
+            continue
+        if c == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
         if c == "{":
             depth += 1
         elif c == "}":
             depth -= 1
             if depth == 0:
                 return json.loads(text[start:i + 1])
-    raise ValueError("Unbalanced JSON braces in response")
+    raise ValueError("Unbalanced JSON braces in response (likely truncated)")
 
 
 def _coerce_score(raw) -> float:
-    """Accept 0.0-1.0 floats, ints, or PASS/FAIL strings."""
     if isinstance(raw, (int, float)):
         return float(raw)
     if isinstance(raw, str):
@@ -123,38 +120,30 @@ def _coerce_score(raw) -> float:
 
 
 class Grader:
-    """Apply a rubric to LLM/agent output using a swappable judge provider."""
-
     def __init__(self, provider: GraderProvider, rubric: str | Path | Rubric):
         self._provider = provider
         self._rubric = rubric if isinstance(rubric, Rubric) else Rubric.from_file(rubric)
 
     def grade(self, input_text: str, **context) -> GradeResult:
-        """Grade a single input against the configured rubric.
-
-        Extra keyword arguments are substituted into the rubric prompt template
-        as {{ key }} placeholders, alongside the default {{ input }}.
-        """
         prompt = self._rubric.render_prompt(input_text)
-        # Allow multi-key prompt templates (e.g., {{ source }} for summary-fidelity)
         for key, value in context.items():
             prompt = prompt.replace(f"{{{{ {key} }}}}", str(value))
 
-        response = self._provider.judge(prompt)
+        # 4096 tokens is needed for multi-dimension grades with reasoning + failure lists.
+        # Without this, responses truncate mid-JSON and parsing fails.
+        response = self._provider.judge(prompt, max_tokens=4096)
 
         try:
             parsed = _extract_json(response.text)
         except (ValueError, json.JSONDecodeError) as exc:
             return GradeResult(
                 score=0.0,
-                failures=[],
-                reasoning="",
                 raw_response=response,
                 rubric_name=self._rubric.name,
                 provider_name=self._provider.name,
                 cost_usd=response.cost_usd,
                 latency_ms=response.latency_ms,
-                parse_error=f"{type(exc).__name__}: {exc}\n\nRaw response:\n{response.text[:500]}",
+                parse_error=f"{type(exc).__name__}: {exc}\n\nRaw response:\n{response.text[:800]}",
             )
 
         dimensions: dict[str, float] = {}

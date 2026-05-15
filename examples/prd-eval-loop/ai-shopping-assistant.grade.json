@@ -1,0 +1,20 @@
+{
+  "score": 0.915,
+  "dimensions": {
+    "framing": 0.95,
+    "story_coverage": 0.9,
+    "risk_articulation": 0.93,
+    "requirements_specificity": 0.88
+  },
+  "failures": [
+    "Threshold or parameter left undefined: confidence score threshold for ambiguity detection (R-11) is not specified",
+    "Safety/compliance layer (deny-list, PHI filter) not expressed as a testable requirement with acceptance criteria"
+  ],
+  "reasoning": "This is a strong, near-production-ready PRD that clears a high bar on all four dimensions. Framing is crisp with quantified success metrics and an honest top-risk callout. Story coverage is comprehensive across the full user journey with well-formed Given/When/Then acceptance criteria. Risk articulation is unusually thorough, covering regulatory, latency, privacy, bias, scraping, and baseline-validity risks with concrete mitigations. Requirements are EARS-formatted and largely measurable, with the notable gaps being the undefined confidence-score threshold that drives a core P0 behavior (R-11/AC-11) and the absence of testable requirements for the safety deny-list and PHI filter, which are the highest-severity risks in the document. Those two gaps should be closed before engineering handoff\u2014specifically, the confidence threshold needs a numeric value or a defined calibration process, and the compliance/safety layer needs at least one acceptance criterion covering what the system does when a goal or AI output is flagged. Open questions are well-scoped and appropriately flagged as blockers or decisions needed pre-launch.",
+  "rubric_name": "prd-completeness",
+  "provider_name": "anthropic",
+  "model": "claude-sonnet-4-6",
+  "cost_usd": 0.028739999999999998,
+  "latency_ms": 18387,
+  "parse_error": null
+}

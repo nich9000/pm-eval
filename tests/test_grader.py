@@ -55,7 +55,9 @@ prompt_template: "Grade: {{ input }}"
     r = Rubric.from_file(p)
     assert r.name == "test-rubric"
     assert len(r.dimensions) == 1
-    assert "Grade: hello" == r.render_prompt("hello")
+    rendered = r.render_prompt("hello")
+    assert rendered.startswith("Grade: hello")
+    assert "Required response format" in rendered  # schema directive is appended
 
 
 # TODO (v0.1): tests for Grader.grade once response parsing lands.

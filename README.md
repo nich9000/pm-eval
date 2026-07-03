@@ -81,6 +81,31 @@ print(result.failures)           # specific failure modes the rubric catches
 print(result.reasoning)          # judge's explanation
 ```
 
+
+## Multi-judge consensus (v0.2)
+
+One judge gives you a score. A panel gives you a score plus a confidence signal.
+`pm-eval consensus` grades the same input with two or more judges and treats
+their disagreement as the finding:
+
+```bash
+pm-eval consensus \
+  --input examples/prd-eval-loop/ai-shopping-assistant.md \
+  --rubric rubrics/prd-completeness.yaml \
+  -j anthropic:claude-sonnet-4-6 \
+  -j anthropic:claude-haiku-4-5-20251001
+```
+
+Dimensions where the judges split wider than a threshold (default 0.25) are
+flagged for human review. Failures every judge flagged are high-confidence
+findings; failures only one judge saw need verification. Exit codes are
+CI-friendly: `0` agree, `3` disagree, `2` all judges errored.
+
+Panels can also vary the rubric instead of the model — two phrasings of the
+same rubric disagreeing on the same artifact means the rubric is ambiguous.
+See [examples/multi-judge-consensus](examples/multi-judge-consensus/) for a
+worked example that runs offline with no API keys.
+
 ## Rubric library
 
 Reference rubrics live in `rubrics/`. They're tuned for PM-AI scenarios but the format is generic.

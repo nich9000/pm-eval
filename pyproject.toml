@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pm-eval"
-version = "0.0.1"
+version = "0.2.0"
 description = "Provider-agnostic eval harness for grading LLM and agent output against rubrics. The Evaluation rung of The PM Scaffold."
 readme = "README.md"
 license = { text = "MIT" }
